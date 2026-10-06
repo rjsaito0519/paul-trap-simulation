@@ -17,6 +17,10 @@
 //   p_capture_at.npy [n_checkpoint, i_dc, i_ac] capture fraction at checkpoint times
 //   checkpoint_time.npy                         [s]
 //   floquet_class.npy                           0 stable, 1 boundary, 2 unstable (int8)
+//   computed.npy                                1 where this run computed the point (int8)
+// With --chunk K --n-chunks M only grid points [K n / M, (K + 1) n / M) in
+// row-major order are computed (for batch jobs); the others are filled with -1
+// (counts, classes) or NaN, and chunks are merged by scripts/capture_map.py.
 //   with --save-samples: sample_rf_phase.npy, sample_position.npy [N, 3] m,
 //     sample_velocity.npy [N, 3] m/s, sample_electrode.npy [i_dc, i_ac, N] (0 none,
 //     1 ring, 2 endcap), sample_t_end.npy [i_dc, i_ac, N] s
@@ -61,6 +65,7 @@ struct Options {
     double vel_sigma = 0.0;
     std::string rf_phase = "uniform:0:6.283185307179586";
     bool save_samples = false;
+    std::size_t chunk = 0, n_chunks = 1;
     std::string output;
 };
 
@@ -95,6 +100,8 @@ Options parse(int argc, char** argv)
         else if (a == "--vel-sigma") { o.vel_sigma = num(); }
         else if (a == "--rf-phase") { o.rf_phase = str(); }
         else if (a == "--save-samples") { o.save_samples = true; }
+        else if (a == "--chunk") { o.chunk = std::stoul(str()); }
+        else if (a == "--n-chunks") { o.n_chunks = std::stoul(str()); }
         else if (a == "--output") { o.output = str(); }
         else { throw std::invalid_argument("unknown option " + a); }
     }
@@ -103,6 +110,7 @@ Options parse(int argc, char** argv)
     if (o.b < 0.0) { throw std::invalid_argument("b must be non-negative"); }
     if (o.n_vdc == 0 || o.n_vac == 0 || o.samples == 0) { throw std::invalid_argument("empty grid or no samples"); }
     if (o.pos_radius < 0.0 || o.vel_sigma < 0.0) { throw std::invalid_argument("negative spread"); }
+    if (o.n_chunks == 0 || o.chunk >= o.n_chunks) { throw std::invalid_argument("need 0 <= chunk < n-chunks"); }
     return o;
 }
 
@@ -153,6 +161,8 @@ int main(int argc, char** argv)
     const auto v_ac = paultrap::cli::linspace(o.vac_min, o.vac_max, o.n_vac);
     const std::size_t n_points = o.n_vdc * o.n_vac;
     const std::size_t N = o.samples;
+    const std::size_t p_begin = o.chunk * n_points / o.n_chunks;
+    const std::size_t p_end = (o.chunk + 1) * n_points / o.n_chunks;
     const double t_obs = o.rf_periods * 2.0 * kPi / o.omega;
 
     std::vector<InitialCondition> ics(N);
@@ -161,14 +171,15 @@ int main(int argc, char** argv)
     }
 
     const paultrap::TrajectoryIntegrator integ(o.steps_per_rf);
-    std::vector<std::int8_t> electrode(n_points * N);
-    std::vector<double> t_end(n_points * N);
+    // -1 / NaN mark samples of grid points outside this chunk.
+    std::vector<std::int8_t> electrode(n_points * N, -1);
+    std::vector<double> t_end(n_points * N, std::numeric_limits<double>::quiet_NaN());
 
     const auto t0 = std::chrono::steady_clock::now();
-    const auto total = static_cast<std::int64_t>(n_points * N);
+    const auto total = static_cast<std::int64_t>((p_end - p_begin) * N);
 #pragma omp parallel for schedule(dynamic, 16)
     for (std::int64_t idx = 0; idx < total; ++idx) {
-        const auto u = static_cast<std::size_t>(idx);
+        const auto u = p_begin * N + static_cast<std::size_t>(idx);
         const std::size_t pt = u / N, k = u % N;
         paultrap::TrapParams p;
         p.a_z = o.a_per_vdc * v_dc[pt / o.n_vac];
@@ -191,10 +202,11 @@ int main(int argc, char** argv)
 
     // Aggregate serially (deterministic).
     const std::size_t n_ck = sizeof(kCheckpoints) / sizeof(kCheckpoints[0]);
-    std::vector<std::int64_t> n_trapped(n_points), n_ring(n_points), n_endcap(n_points);
-    std::vector<double> p_capture(n_points), lo(n_points), hi(n_points), mean_esc(n_points);
-    std::vector<double> p_at(n_ck * n_points), ck_time(n_ck);
-    std::vector<std::int8_t> fclass(n_points);
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    std::vector<std::int64_t> n_trapped(n_points, -1), n_ring(n_points, -1), n_endcap(n_points, -1);
+    std::vector<double> p_capture(n_points, nan), lo(n_points, nan), hi(n_points, nan), mean_esc(n_points, nan);
+    std::vector<double> p_at(n_ck * n_points, nan), ck_time(n_ck);
+    std::vector<std::int8_t> fclass(n_points, -1), computed(n_points, 0);
     std::vector<double> a_axis(o.n_vdc), q_axis(o.n_vac);
     for (std::size_t c = 0; c < n_ck; ++c) {
         ck_time[c] = kCheckpoints[c] * t_obs;
@@ -202,7 +214,8 @@ int main(int argc, char** argv)
     for (std::size_t i = 0; i < o.n_vdc; ++i) { a_axis[i] = o.a_per_vdc * v_dc[i]; }
     for (std::size_t j = 0; j < o.n_vac; ++j) { q_axis[j] = o.q_per_vac * v_ac[j]; }
     const paultrap::MonodromyIntegrator floquet(2000);
-    for (std::size_t pt = 0; pt < n_points; ++pt) {
+    for (std::size_t pt = p_begin; pt < p_end; ++pt) {
+        computed[pt] = 1;
         std::int64_t trapped = 0, ring = 0, endcap = 0;
         double sum_esc = 0.0;
         std::vector<std::int64_t> alive(n_ck, 0);
@@ -254,6 +267,7 @@ int main(int argc, char** argv)
     write((dir / "p_capture_at.npy").string(), p_at, {n_ck, o.n_vdc, o.n_vac});
     write((dir / "checkpoint_time.npy").string(), ck_time, {n_ck});
     write((dir / "floquet_class.npy").string(), fclass, grid);
+    write((dir / "computed.npy").string(), computed, grid);
     if (o.save_samples) {
         std::vector<double> ph(N), pos(3 * N), vel(3 * N);
         for (std::size_t k = 0; k < N; ++k) {
@@ -293,9 +307,11 @@ int main(int argc, char** argv)
          << ", \"b\": " << o.b << ", \"gravity_term\": " << o.gravity_term << ", \"r0\": " << o.r0
          << ", \"omega\": " << o.omega << "},\n"
          << "  \"interval\": \"95% Wilson score\",\n"
+         << "  \"chunk\": " << o.chunk << ", \"n_chunks\": " << o.n_chunks << ", \"point_range\": [" << p_begin
+         << ", " << p_end << "],\n"
          << "  \"elapsed_seconds\": " << elapsed << "\n"
          << "}\n";
-    std::cout << "points: " << n_points << "  samples/point: " << N << "  threads: " << omp_get_max_threads()
+    std::cout << "points: " << (p_end - p_begin) << "/" << n_points << "  samples/point: " << N << "  threads: " << omp_get_max_threads()
               << "  elapsed: " << elapsed << " s\nwrote " << dir.string() << "\n";
     return 0;
 }

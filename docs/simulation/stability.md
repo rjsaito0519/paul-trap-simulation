@@ -116,3 +116,4 @@ Phase 4の参照実装は`scripts/trajectory.py`（scipy `solve_ivp` DOP853、`r
 - 乱数: サンプル`k`は`(seed, k)`から作るSplitMix64系列を使い、スレッド数や実行順序に依存しない。一様乱数と正規乱数（Box-Muller）は自前実装で、標準ライブラリ間の差を避ける。
 - 全格子点で同じ`N`個の初期条件を使う（common random numbers）。点ごとの`P`の統計誤差は独立だが、隣接点間の差の揺らぎが小さくなる。
 - 電圧から`a_z`、`q_z`への換算係数はPython側（`scripts/trajectory.py`）で計算し、C++は`a_z = a_per_vdc V_DC`、`q_z = q_per_vac V_AC`として使う。粒径や電荷に分布を入れる場合は、この境界を見直す。
+- バッチ実行（2026-10-06）: `capture_scan --chunk K --n-chunks M`は行優先の格子点`[K n / M, (K + 1) n / M)`だけを計算し、他の点を-1またはNaNで埋め、`computed.npy`に計算済みの点を記録する。全格子点が同じ初期条件を使うため、`scripts/capture_map.py --merge`で結合した結果は一括実行とビット単位で一致する（`tests/test_capture_map.py`）。`--emit-jobs M`はLSFジョブスクリプトを書き出すだけで投入しない。

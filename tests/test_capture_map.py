@@ -46,5 +46,41 @@ class TestEndToEnd(unittest.TestCase):
             self.assertTrue(np.all((p >= 0) & (p <= 1)))
 
 
+def small_config(tmp, n_dc=5, n_ac=7):
+    text = (REPO / "configs" / "example_microparticle.toml").read_text()
+    text = re.sub(r"n_v_dc = \d+", f"n_v_dc = {n_dc}", text)
+    text = re.sub(r"n_v_ac = \d+", f"n_v_ac = {n_ac}", text)
+    text = re.sub(r"samples = \d+", "samples = 20", text)
+    text = re.sub(r"rf_periods = \d+", "rf_periods = 20", text)
+    cfg = Path(tmp) / "small.toml"
+    cfg.write_text(text)
+    return cfg
+
+
+@unittest.skipUnless(BUILT, "C++ programs not built")
+class TestChunks(unittest.TestCase):
+    def test_chunked_jobs_merge_to_single_run(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = small_config(tmp)
+            single = Path(tmp) / "single"
+            subprocess.run(cm.scan_command(cfg, single, 2), check=True, capture_output=True)
+            out = Path(tmp) / "batch"
+            scripts = cm.emit_jobs(cfg, out, 3, 2, queue="testq")
+            self.assertEqual(len(scripts), 3)
+            text = scripts[0].read_text()
+            self.assertIn("#BSUB -q testq", text)
+            self.assertIn("--chunk' '0' '--n-chunks' '3'", text)
+            # Run the job scripts locally (no batch submission) and merge.
+            for sc in scripts:
+                subprocess.run(["bash", str(sc)], check=True, capture_output=True)
+            merged = cm.merge_chunks(sorted((out / "chunks").glob("chunk_*")), out / "scan")
+            for n in cm.GRID_ARRAYS + ("p_capture_at", "v_dc", "v_ac"):
+                np.testing.assert_array_equal(np.load(merged / f"{n}.npy"), np.load(single / f"{n}.npy"), err_msg=n)
+            # A missing chunk is detected.
+            with self.assertRaises(ValueError):
+                cm.merge_chunks(sorted((out / "chunks").glob("chunk_*"))[:2], Path(tmp) / "bad")
+
+
 if __name__ == "__main__":
     unittest.main()

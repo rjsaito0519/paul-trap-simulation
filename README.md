@@ -39,6 +39,7 @@ python3 scripts/stability_overview.py                               # b ごと�
 python3 scripts/trajectory.py configs/example_microparticle.toml    # 粒子軌道と捕獲/脱出
 python3 scripts/animate_trap.py configs/example_microparticle.toml --rf-cycles 20   # 3D GIF（.mp4 も可）
 python3 scripts/capture_map.py configs/example_microparticle.toml                   # 捕獲確率マップ（[capture]節）
+python3 scripts/capture_map.py configs/example_microparticle.toml --emit-jobs 20   # bsub用スクリプト生成（投入は手動）、完了後 --merge
 python3 scripts/make_figures.py --readme                            # 標準の図・GIFとREADME画像をまとめて再生成
 ```
 
