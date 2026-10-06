@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MyAnalysis VERSION 0.1.0 LANGUAGES CXX)
+project(PaulTrapSimulation VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -69,7 +69,5 @@ function(add_analysis_executable target source)
     )
 endfunction()
 
-# Add new programs explicitly here. This keeps accidental/unfinished sources
-# from silently becoming build targets.
-add_analysis_executable(example_analysis src/example_analysis.cpp)
-add_analysis_executable(rdf_analysis src/rdf_analysis.cpp)
+# Add simulation programs explicitly after their interfaces and validation
+# requirements have been agreed in docs/simulation/.

@@ -1,36 +1,34 @@
 # Repository guide for AI assistants
 
-This repository uses C++17, CERN ROOT, and Python for data analysis.
-Keep it general: do not assume a specific experiment, detector, run-number scheme, storage layout, or host environment.
+This repository plans a Paul trap simulator using C++17 for numerical kernels and Python for orchestration and visualization. CERN ROOT remains a storage option, not yet a settled requirement.
 
 ## Start here
 
 - Read `README.md` for commands and the current directory layout.
-- Read `docs/README.md` for design notes and project conventions.
+- Read `docs/simulation/README.md` and the linked model, stability, architecture, validation, and roadmap documents before implementation.
 - Inspect the files related to the request before editing them; do not scan or rewrite unrelated areas.
 
 ## Working rules
 
 - Make the smallest change that fully solves the requested problem.
 - Follow nearby code style and preserve compatibility unless a deliberate migration is requested.
-- Do not introduce dependencies, directories, or abstractions before they are needed.
+- Do not introduce dependencies, directories, numerical kernels, or abstractions before the corresponding interface and validation criteria are documented.
 - Do not hard-code user names, host names, absolute paths, dataset locations, or exact tool versions.
 - Keep generated files, large data, ROOT outputs, and credentials out of Git.
 
-## Physics and ROOT safety
+## Physics and numerical safety
 
-- Never change cuts, calibration values, units, coordinate conventions, or reconstruction behavior silently.
-- State the expected effect of any change that can alter physics results.
-- Preserve existing TTree, branch, histogram, and ROOT object names unless a migration is part of the task.
-- Validate input files, trees, and required branches before an event loop.
-- Keep provenance needed to reproduce results, such as the Git revision, ROOT version, inputs, and important options.
+- Never change signs, units, coordinate conventions, dimensionless definitions, stability criteria, escape criteria, or initial-condition conventions silently.
+- Keep Floquet stability distinct from finite-aperture, finite-time capture.
+- State the expected numerical and physical effect of changes to integration, tolerances, grids, interpolation, or classification.
+- Keep provenance needed to reproduce results, including Git revision, compiler and library versions, input configuration, random seed, solver, tolerances, grid, and observation time.
 
 ## Code and verification
 
 - C++ uses C++17. Prefer RAII, values, standard-library facilities, and explicit ownership.
 - Add C++ programs explicitly with `add_analysis_executable(...)`; do not glob sources into targets.
-- Python scripts stay under `scripts/` until shared code genuinely warrants a package.
-- Build C++ changes with `./build.sh`. Run the smallest relevant example or script when practical.
+- Keep the validated equations and classification semantics in one authoritative implementation. Python reference calculations may remain separate only when used as an explicit cross-check.
+- Build C++ changes with `./build.sh`. Run the smallest applicable benchmark and convergence test.
 - Do not treat generated files under `.build*/`, `data/`, or `results/` as source files.
 
 ## Git commits
@@ -53,7 +51,7 @@ Keep it general: do not assume a specific experiment, detector, run-number schem
 
 - Keep `README.md` short and task-oriented.
 - Put durable explanations in `docs/` and add them to `docs/README.md`.
-- Organize documentation by its concrete analysis topic from the beginning; do not impose generic categories that do not match the project.
+- Keep the simulation documents under `docs/simulation/` and update their index when adding or replacing decisions.
 - Give each topic directory its own `README.md` entry point and link it from `docs/README.md`.
 - Record assumptions, units, input/output schemas, and validation methods for analysis logic.
 - Date statements that describe temporary status or time-dependent results.
