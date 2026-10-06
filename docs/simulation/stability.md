@@ -106,3 +106,13 @@ endcaps: 2 z^2 - (x^2 + y^2) = 2 z0^2 = r0^2
 Phase 4の参照実装は`scripts/trajectory.py`（scipy `solve_ivp` DOP853、`rtol = 1e-10`、`atol = 1e-13`、最大step `pi/20`、電極面をterminal eventで検出し、衝突点を最終サンプルとして保存）。
 
 捕獲確率を求める場合は、初期位置、初速度、粒径、電荷などの分布とrandom seedを必ず保存する。観測時間を変えた収束も確認する。
+
+## 捕獲確率の計算（2026-10-06、Phase 5b）
+
+`capture_scan`は`(V_DC, V_AC)`格子の各点で、観測時間`T_obs`内に電極へ到達しなかったサンプルの割合を捕獲確率`P`とし、95% Wilson信頼区間を付ける。
+
+- 既定の分布: RF位相は`[0, 2 pi)`で一様、初期位置は中心`pos_center`、半径`pos_radius`の球内で一様、初速度は平均`vel_mean`、各成分標準偏差`vel_sigma`の等方正規分布。粒径と電荷は固定（分布は将来追加）。
+- 既定の`T_obs`はRF 200周期。`T_obs`の1/8、1/4、1/2、1倍での捕獲割合も出力し、観測時間への収束を確認する。
+- 乱数: サンプル`k`は`(seed, k)`から作るSplitMix64系列を使い、スレッド数や実行順序に依存しない。一様乱数と正規乱数（Box-Muller）は自前実装で、標準ライブラリ間の差を避ける。
+- 全格子点で同じ`N`個の初期条件を使う（common random numbers）。点ごとの`P`の統計誤差は独立だが、隣接点間の差の揺らぎが小さくなる。
+- 電圧から`a_z`、`q_z`への換算係数はPython側（`scripts/trajectory.py`）で計算し、C++は`a_z = a_per_vdc V_DC`、`q_z = q_per_vac V_AC`として使う。粒径や電荷に分布を入れる場合は、この境界を見直す。

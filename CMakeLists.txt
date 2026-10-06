@@ -82,3 +82,7 @@ target_link_libraries(floquet_boundary PRIVATE paultrap_floquet OpenMP::OpenMP_C
 # 3D trajectory engine (docs/simulation/stability.md, finite-time capture).
 add_analysis_executable(trajectory_run src/trajectory_run.cpp)
 target_link_libraries(trajectory_run PRIVATE paultrap_floquet)
+
+# Monte Carlo capture probability (Phase 5).
+add_analysis_executable(capture_scan src/capture_scan.cpp)
+target_link_libraries(capture_scan PRIVATE paultrap_floquet OpenMP::OpenMP_CXX)

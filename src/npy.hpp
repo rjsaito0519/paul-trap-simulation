@@ -13,6 +13,7 @@ namespace paultrap::npy {
 template <typename T> const char* descr();
 template <> inline const char* descr<double>() { return "<f8"; }
 template <> inline const char* descr<std::int8_t>() { return "|i1"; }
+template <> inline const char* descr<std::int64_t>() { return "<i8"; }
 
 template <typename T>
 void write(const std::string& path, const std::vector<T>& data,
