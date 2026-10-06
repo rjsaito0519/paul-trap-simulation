@@ -1,6 +1,6 @@
 # Repository guide for AI assistants
 
-This repository plans a Paul trap simulator using C++17 for numerical kernels and Python for orchestration and visualization. CERN ROOT remains a storage option, not yet a settled requirement.
+This repository plans a Paul trap simulator using C++17 for numerical kernels and Python for orchestration and visualization. CERN ROOT is not used (decided 2026-10-06); do not add ROOT dependencies.
 
 ## Start here
 
@@ -14,7 +14,7 @@ This repository plans a Paul trap simulator using C++17 for numerical kernels an
 - Follow nearby code style and preserve compatibility unless a deliberate migration is requested.
 - Do not introduce dependencies, directories, numerical kernels, or abstractions before the corresponding interface and validation criteria are documented.
 - Do not hard-code user names, host names, absolute paths, dataset locations, or exact tool versions.
-- Keep generated files, large data, ROOT outputs, and credentials out of Git.
+- Keep generated files, large data, and credentials out of Git.
 
 ## Physics and numerical safety
 

@@ -6,8 +6,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ANALYSIS_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan" OFF)
 
-find_package(ROOT 6.24 REQUIRED COMPONENTS Core RIO Tree Hist Graf Gpad ROOTDataFrame)
-
 execute_process(
     COMMAND git rev-parse --short=12 HEAD
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
@@ -54,16 +52,7 @@ endif()
 
 function(add_analysis_executable target source)
     add_executable(${target} ${source})
-    target_link_libraries(${target} PRIVATE
-        analysis_options
-        ROOT::Core
-        ROOT::RIO
-        ROOT::Tree
-        ROOT::Hist
-        ROOT::Graf
-        ROOT::Gpad
-        ROOT::ROOTDataFrame
-    )
+    target_link_libraries(${target} PRIVATE analysis_options)
     set_target_properties(${target} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
@@ -71,3 +60,21 @@ endfunction()
 
 # Add simulation programs explicitly after their interfaces and validation
 # requirements have been agreed in docs/simulation/.
+
+find_package(OpenMP REQUIRED COMPONENTS CXX)
+enable_testing()
+
+# Floquet stability engine (docs/simulation/stability.md).
+add_library(paultrap_floquet STATIC src/floquet.cpp)
+target_include_directories(paultrap_floquet PUBLIC src)
+target_link_libraries(paultrap_floquet PRIVATE analysis_options)
+
+add_analysis_executable(floquet_scan src/floquet_scan.cpp)
+target_link_libraries(floquet_scan PRIVATE paultrap_floquet OpenMP::OpenMP_CXX)
+
+add_analysis_executable(floquet_selftest src/floquet_selftest.cpp)
+target_link_libraries(floquet_selftest PRIVATE paultrap_floquet)
+add_test(NAME floquet_selftest COMMAND floquet_selftest)
+
+add_analysis_executable(floquet_boundary src/floquet_boundary.cpp)
+target_link_libraries(floquet_boundary PRIVATE paultrap_floquet OpenMP::OpenMP_CXX)

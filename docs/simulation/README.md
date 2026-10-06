@@ -2,7 +2,7 @@
 
 ## 現在の状態
 
-2026-10-06時点では設計段階で、実行可能なシミュレーションコードはありません。既存ノートを参照しながら、数理モデル、安定判定、ソフトウェア境界、検証条件を先に固定する方針です。
+2026-10-06時点で、Phase 1（Python参照計算、`scripts/floquet_reference.py`）、Phase 2（C++/OpenMPのFloquet走査、`src/floquet_scan.cpp`）、Phase 3（境界追跡、`src/floquet_boundary.cpp`）、Phase 4の3次元軌道とアニメーション（`scripts/trajectory.py`、`scripts/animate_trap.py`、Python参照実装）を実装済みです。走査結果は暫定的に`.npy`とmetadata JSONで出力し、正式な結果形式はPhase 3で決める。
 
 ## 読み順
 

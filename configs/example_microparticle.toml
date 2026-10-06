@@ -1,0 +1,39 @@
+# EXAMPLE values only (2026-10-06): a charged polystyrene-like microsphere in air.
+# They are NOT taken from the experiment or the prior notebooks; replace them
+# with real parameters before drawing physical conclusions.
+# Conventions: docs/simulation/model.md (SI units, March voltage convention,
+# ideal ring-endcap trap with r0^2 = 2 z0^2, gravity along -z).
+
+[particle]
+radius = 5.0e-6          # m
+density = 1050.0         # kg/m^3
+charge = 1.6e-14         # C, signed (about 1e5 e)
+
+[gas]
+viscosity = 1.81e-5      # Pa s (air, 20 C); Stokes drag k = 6 pi eta R
+
+[trap]
+r0 = 5.0e-3              # m, ring inner radius; z0 = r0 / sqrt(2)
+v_dc = 0.0               # V, ring minus endcap
+v_ac = 1000.0            # V, amplitude (not peak-to-peak)
+frequency = 200.0        # Hz; Omega = 2 pi f
+rf_phase = 0.0           # rad; voltage V_DC + V_AC cos(Omega t + rf_phase)
+gravity = 9.80665        # m/s^2 along -z
+
+[simulation]
+duration = 0.25          # s
+# Each particle: position [m] and physical velocity [m/s] at t = 0.
+[[particles]]
+label = "slow"
+position = [1.0e-3, 0.0, 1.0e-3]
+velocity = [0.0, 0.05, 0.0]
+
+[[particles]]
+label = "medium"
+position = [-1.5e-3, 0.5e-3, -0.5e-3]
+velocity = [0.2, 0.0, 0.3]
+
+[[particles]]
+label = "fast"
+position = [0.0, 0.0, 0.0]
+velocity = [0.0, 0.0, 15.0]

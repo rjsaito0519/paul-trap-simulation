@@ -47,7 +47,9 @@ PythonとC++の同名関数を増やさず、参照実装と本番実装の目�
 - Pythonから標準的に読める。
 - 長期保存で特定の実行環境に依存しない。
 
-ROOT、HDF5、Zarrなどを候補とするが、実装前に代表データ量で比較する。CSVは小さい境界曲線やデバッグ用に限定する。
+ROOTは使用しない（2026-10-06決定）。HDF5、Zarr、NumPy形式などを候補とするが、実装前に代表データ量で比較する。CSVは小さい境界曲線やデバッグ用に限定する。
+
+2026-10-06時点の暫定形式: 密な走査（`floquet_scan`）は`.npy`とmetadata JSON、境界点（`floquet_boundary`）はCSV（`b, polyline, index, closed, a_z, q_z, limiting, region, edge_axis, edge_i, edge_j`）とmetadata JSON。新しい依存を増やさないため、HDF5やZarrは大きな結果が必要になった段階で再検討する。
 
 ## 想定ディレクトリ
 
