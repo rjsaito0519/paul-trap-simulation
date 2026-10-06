@@ -2,7 +2,7 @@
 
 ## 現在の状態
 
-2026-10-06時点で、Phase 1（Python参照計算、`scripts/floquet_reference.py`）、Phase 2（C++/OpenMPのFloquet走査、`src/floquet_scan.cpp`）、Phase 3（境界追跡、`src/floquet_boundary.cpp`）、Phase 4の3次元軌道とアニメーション（`scripts/trajectory.py`、`scripts/animate_trap.py`）、Phase 5の捕獲確率（`src/trajectory.cpp`、`src/capture_scan.cpp`、`scripts/capture_map.py`）を実装済みです。走査結果は暫定的に`.npy`とmetadata JSONで出力し、正式な結果形式はPhase 3で決める。
+2026-10-06時点で、Phase 1（Python参照計算、`scripts/floquet_reference.py`）、Phase 2（C++/OpenMPのFloquet走査、`src/floquet_scan.cpp`）、Phase 3（境界追跡、`src/floquet_boundary.cpp`）、Phase 4の3次元軌道とアニメーション（`scripts/trajectory.py`、`scripts/animate_trap.py`）、Phase 5の捕獲確率（`src/trajectory.cpp`、`src/capture_scan.cpp`、`scripts/capture_map.py`）、Phase 6の描画分離・2D/3D GIF・一括再生成（`scripts/make_figures.py`、README画像は`docs/images/`）を実装済みです。インタラクティブHTMLは保留中。走査結果は暫定的に`.npy`とmetadata JSONで出力し、正式な結果形式はPhase 3で決める。
 
 ## 読み順
 

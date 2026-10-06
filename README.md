@@ -2,12 +2,24 @@
 
 空気抵抗と重力を含むポールトラップの粒子軌道、Mathieu方程式の安定領域、有限電極内での捕獲可能性を数値計算するためのプロジェクトです。
 
-2026-10-06時点ではPhase 3（C++/OpenMPによるFloquet安定判定と境界追跡）、Phase 4の3次元軌道・アニメーション、Phase 5の捕獲確率（C++/OpenMP）まで実装済みです。実装を始める前に、[docs/simulation/README.md](docs/simulation/README.md)から設計文書を確認してください。
+2026-10-06時点で、Floquet安定判定と境界追跡（C++/OpenMP）、3次元軌道とアニメーション、Monte Carloによる捕獲確率（C++/OpenMP）まで実装済みです。設計と検証の記録は[docs/simulation/README.md](docs/simulation/README.md)にあります。
+
+## 例
+
+以下は`configs/example_microparticle.toml`の**例の値**（空気中の帯電微粒子、`b ≈ 4.9`）による結果で、実験条件ではありません。
+
+| 捕獲される粒子（`q_z ≈ 2.9`） | 安定境界のすぐ外側で脱出する粒子（`q_z ≈ 15.0`） |
+| --- | --- |
+| ![trapped particle](docs/images/trap_3d.gif) | ![escaping particle](docs/images/escape_3d.gif) |
+
+| `b`ごとのFloquet安定領域 | 捕獲確率マップ |
+| --- | --- |
+| ![stability regions](docs/images/stability_overview.png) | ![capture probability](docs/images/capture_map.png) |
 
 ## 想定する構成
 
 - C++17: Floquet判定、パラメータ走査、Monte Carlo計算
-- Python: 設定、結果解析、2D/3D可視化、GIF・MP4・インタラクティブHTML
+- Python: 設定、結果解析、2D/3D可視化、GIF（インタラクティブHTMLは保留）
 - CMake: C++ビルド
 
 CERN ROOTは使用しない（2026-10-06決定）。
@@ -27,6 +39,7 @@ python3 scripts/stability_overview.py                               # b ごと�
 python3 scripts/trajectory.py configs/example_microparticle.toml    # 粒子軌道と捕獲/脱出
 python3 scripts/animate_trap.py configs/example_microparticle.toml --rf-cycles 20   # 3D GIF（.mp4 も可）
 python3 scripts/capture_map.py configs/example_microparticle.toml                   # 捕獲確率マップ（[capture]節）
+python3 scripts/make_figures.py --readme                            # 標準の図・GIFとREADME画像をまとめて再生成
 ```
 
 共有ログインノードでは、Pythonの数値ライブラリが全コアを使わないよう`OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2`などを設定して実行してください。
