@@ -111,7 +111,8 @@ Phase 4の参照実装は`scripts/trajectory.py`（scipy `solve_ivp` DOP853、`r
 
 `capture_scan`は`(V_DC, V_AC)`格子の各点で、観測時間`T_obs`内に電極へ到達しなかったサンプルの割合を捕獲確率`P`とし、95% Wilson信頼区間を付ける。
 
-- 既定の分布: RF位相は`[0, 2 pi)`で一様、初期位置は中心`pos_center`、半径`pos_radius`の球内で一様、初速度は平均`vel_mean`、各成分標準偏差`vel_sigma`の等方正規分布。粒径と電荷は固定（分布は将来追加）。
+- 既定の分布: RF位相は`[0, 2 pi)`で一様、初期位置は中心`pos_center`、半径`pos_radius`の球内で一様、初速度は平均`vel_mean`、各成分標準偏差`vel_sigma`の等方正規分布。粒径と電荷は既定で固定。
+- 粒径・電荷の分布（2026-10-06）: `[capture]`の`radius`、`charge`に`fixed`、`uniform`、`normal`、`lognormal:median:sigma_ln`を指定できる。C++は基準粒子（`[particle]`の値）の係数を、密度一定の下で`a_z, q_z ∝ (Q/Q_ref)(R_ref/R)^3`、`b ∝ (R_ref/R)^2`とスケールする（重力項は不変）。この比例則だけはC++にも置くため、`scripts/trajectory.py`による物理量からの直接計算と照合する（`tests/test_capture_scan.py`）。正でない粒径が出た場合はエラーにする。`floquet_class`は基準粒子についての値。乱数は速度の後に粒径、電荷の順で引き、固定の場合は引かないため、既存の結果は変わらない。
 - 既定の`T_obs`はRF 200周期。`T_obs`の1/8、1/4、1/2、1倍での捕獲割合も出力し、観測時間への収束を確認する。
 - 乱数: サンプル`k`は`(seed, k)`から作るSplitMix64系列を使い、スレッド数や実行順序に依存しない。一様乱数と正規乱数（Box-Muller）は自前実装で、標準ライブラリ間の差を避ける。
 - 全格子点で同じ`N`個の初期条件を使う（common random numbers）。点ごとの`P`の統計誤差は独立だが、隣接点間の差の揺らぎが小さくなる。

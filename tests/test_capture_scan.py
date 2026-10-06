@@ -126,6 +126,59 @@ class TestCaptureScan(unittest.TestCase):
         self.assertEqual(int(stable["floquet_class"][0, 0]), 0)
         self.assertEqual(int(stable["n_trapped"][0, 0]), 30)
 
+    def test_explicit_fixed_properties_change_nothing(self):
+        # Fixed radius/charge must not shift the random streams or the results.
+        base = ("--vac-range", 500, 5000, "--n-vac", 4, "--samples", 40, "--rf-periods", 20,
+                "--pos-radius", 1e-3, "--vel-sigma", 0.5, "--save-samples")
+        with tempfile.TemporaryDirectory() as tmp:
+            a = run_scan(Path(tmp) / "a", *base)
+            b = run_scan(Path(tmp) / "b", *base, "--radius-ref", SETUP.radius, "--radius", f"fixed:{SETUP.radius!r}",
+                         "--charge-ref", SETUP.charge, "--charge", f"fixed:{SETUP.charge!r}")
+        for n in a:
+            np.testing.assert_array_equal(a[n], b[n], err_msg=n)
+
+    def test_varying_radius_and_charge_match_python_reference(self):
+        # The C++ scaling a, q ~ (Q/Q_ref)(R_ref/R)^3 and b ~ (R_ref/R)^2 is checked against
+        # scripts/trajectory.py, which computes the coefficients from the physical values.
+        N = 30
+        with tempfile.TemporaryDirectory() as tmp:
+            d = run_scan(Path(tmp), "--vac-range", 3000, 3000, "--samples", N, "--rf-periods", 30,
+                         "--pos-radius", 1.5e-3, "--vel-sigma", 1.0, "--steps-per-rf", 800,
+                         "--radius-ref", SETUP.radius, "--radius", f"lognormal:{SETUP.radius!r}:0.3",
+                         "--charge-ref", SETUP.charge, "--charge", f"normal:{SETUP.charge!r}:{0.3 * SETUP.charge!r}",
+                         "--save-samples")
+            rs, cs = np.load(Path(tmp) / "sample_radius_scale.npy"), np.load(Path(tmp) / "sample_charge_scale.npy")
+        self.assertGreater(np.std(rs), 0.1)
+        self.assertGreater(np.std(cs), 0.1)
+        electrodes = {0: "", 1: "ring", 2: "endcap"}
+        outcomes = set()
+        for k in range(N):
+            s = tj.Setup(**{**SETUP.__dict__, "v_ac": 3000.0, "radius": SETUP.radius * rs[k],
+                            "charge": SETUP.charge * cs[k], "rf_phase": float(d["sample_rf_phase"][k]),
+                            "duration": 30 / SETUP.frequency, "particles": []})
+            tr = tj.integrate(s, tj.Particle("p", d["sample_position"][k], d["sample_velocity"][k]))
+            self.assertEqual(electrodes[int(d["sample_electrode"][0, 0, k])], tr.electrode, msg=f"sample {k}")
+            if tr.escaped:
+                self.assertAlmostEqual(d["sample_t_end"][0, 0, k] / tr.escape_time, 1.0, delta=1e-6)
+            outcomes.add(tr.escaped)
+        self.assertEqual(outcomes, {True, False})
+
+    def test_lognormal_radius_distribution(self):
+        N = 20000
+        with tempfile.TemporaryDirectory() as tmp:
+            run_scan(Path(tmp), "--samples", N, "--rf-periods", 0.01, "--save-samples",
+                     "--radius-ref", SETUP.radius, "--radius", f"lognormal:{2 * SETUP.radius!r}:0.2")
+            rs = np.load(Path(tmp) / "sample_radius_scale.npy")
+        ln = np.log(rs * SETUP.radius / (2 * SETUP.radius))
+        self.assertAlmostEqual(ln.mean(), 0.0, delta=5 * 0.2 / math.sqrt(N))
+        self.assertAlmostEqual(ln.std(), 0.2, delta=5 * 0.2 / math.sqrt(2 * N))
+
+    def test_nonpositive_radius_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(subprocess.CalledProcessError):
+                run_scan(Path(tmp), "--samples", 200, "--rf-periods", 1, "--radius-ref", SETUP.radius,
+                         "--radius", f"normal:{SETUP.radius!r}:{SETUP.radius!r}")
+
 
 if __name__ == "__main__":
     unittest.main()

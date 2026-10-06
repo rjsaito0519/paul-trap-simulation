@@ -7,7 +7,14 @@
 //
 // Sample k uses the random stream (seed, k) at every grid point, so all points
 // share the same initial conditions (common random numbers). Draw order per
-// sample: RF phase, position (direction 2 draws, radius 1 draw), velocity (3 normals).
+// sample: RF phase, position (direction 2 draws, radius 1 draw), velocity (3 normals),
+// particle radius, particle charge (fixed distributions draw nothing).
+//
+// Particle radius R and charge Q may vary per sample around the reference particle
+// (R_ref, Q_ref) used for the coefficients. With density fixed, m is proportional to
+// R^3 and the Stokes drag to R, so (docs/simulation/model.md)
+//   a_z, q_z scale as (Q / Q_ref) (R_ref / R)^3,  b scales as (R_ref / R)^2,
+// and 4 g / Omega^2 does not change. floquet_class refers to the reference particle.
 //
 // Output directory (grid arrays indexed [i_dc, i_ac]):
 //   v_dc.npy, v_ac.npy, a_z.npy, q_z.npy        axes
@@ -22,7 +29,8 @@
 // row-major order are computed (for batch jobs); the others are filled with -1
 // (counts, classes) or NaN, and chunks are merged by scripts/capture_map.py.
 //   with --save-samples: sample_rf_phase.npy, sample_position.npy [N, 3] m,
-//     sample_velocity.npy [N, 3] m/s, sample_electrode.npy [i_dc, i_ac, N] (0 none,
+//     sample_velocity.npy [N, 3] m/s, sample_radius_scale.npy and sample_charge_scale.npy
+//     [N] (R / R_ref, Q / Q_ref), sample_electrode.npy [i_dc, i_ac, N] (0 none,
 //     1 ring, 2 endcap), sample_t_end.npy [i_dc, i_ac, N] s
 //   metadata.json
 #include "cli_util.hpp"
@@ -64,6 +72,8 @@ struct Options {
     double vel_mean[3] = {0.0, 0.0, 0.0};
     double vel_sigma = 0.0;
     std::string rf_phase = "uniform:0:6.283185307179586";
+    double radius_ref = 0.0, charge_ref = 0.0;  // needed only when radius/charge vary
+    std::string radius = "", charge = "";        // empty: fixed at the reference
     bool save_samples = false;
     std::size_t chunk = 0, n_chunks = 1;
     std::string output;
@@ -99,6 +109,10 @@ Options parse(int argc, char** argv)
         else if (a == "--vel-mean") { for (double& x : o.vel_mean) { x = num(); } }
         else if (a == "--vel-sigma") { o.vel_sigma = num(); }
         else if (a == "--rf-phase") { o.rf_phase = str(); }
+        else if (a == "--radius-ref") { o.radius_ref = num(); }
+        else if (a == "--charge-ref") { o.charge_ref = num(); }
+        else if (a == "--radius") { o.radius = str(); }
+        else if (a == "--charge") { o.charge = str(); }
         else if (a == "--save-samples") { o.save_samples = true; }
         else if (a == "--chunk") { o.chunk = std::stoul(str()); }
         else if (a == "--n-chunks") { o.n_chunks = std::stoul(str()); }
@@ -111,6 +125,8 @@ Options parse(int argc, char** argv)
     if (o.n_vdc == 0 || o.n_vac == 0 || o.samples == 0) { throw std::invalid_argument("empty grid or no samples"); }
     if (o.pos_radius < 0.0 || o.vel_sigma < 0.0) { throw std::invalid_argument("negative spread"); }
     if (o.n_chunks == 0 || o.chunk >= o.n_chunks) { throw std::invalid_argument("need 0 <= chunk < n-chunks"); }
+    if (!o.radius.empty() && !(o.radius_ref > 0.0)) { throw std::invalid_argument("--radius needs --radius-ref > 0"); }
+    if (!o.charge.empty() && o.charge_ref == 0.0) { throw std::invalid_argument("--charge needs a nonzero --charge-ref"); }
     return o;
 }
 
@@ -118,10 +134,19 @@ struct InitialCondition {
     double rf_phase;
     double position[3];  // m
     double velocity[3];  // m/s
+    double radius_scale;  // R / R_ref
+    double charge_scale;  // Q / Q_ref
 };
 
-InitialCondition draw(const Options& o, const paultrap::Distribution& phase, std::uint64_t k)
+struct Distributions {
+    paultrap::Distribution phase;
+    bool vary_radius = false, vary_charge = false;
+    paultrap::Distribution radius, charge;
+};
+
+InitialCondition draw(const Options& o, const Distributions& dist, std::uint64_t k)
 {
+    const auto& phase = dist.phase;
     auto rng = paultrap::make_stream(o.seed, k);
     InitialCondition ic{};
     ic.rf_phase = phase.sample(rng);
@@ -137,6 +162,18 @@ InitialCondition draw(const Options& o, const paultrap::Distribution& phase, std
     for (int i = 0; i < 3; ++i) {
         ic.velocity[i] = o.vel_mean[i] + o.vel_sigma * rng.normal();
     }
+    ic.radius_scale = 1.0;
+    ic.charge_scale = 1.0;
+    if (dist.vary_radius) {
+        const double r = dist.radius.sample(rng);
+        if (!(r > 0.0)) {
+            throw std::runtime_error("sampled a non-positive particle radius; use a positive distribution");
+        }
+        ic.radius_scale = r / o.radius_ref;
+    }
+    if (dist.vary_charge) {
+        ic.charge_scale = dist.charge.sample(rng) / o.charge_ref;
+    }
     return ic;
 }
 
@@ -145,10 +182,14 @@ InitialCondition draw(const Options& o, const paultrap::Distribution& phase, std
 int main(int argc, char** argv)
 {
     Options o;
-    paultrap::Distribution phase;
+    Distributions dist;
     try {
         o = parse(argc, argv);
-        phase = paultrap::Distribution::parse(o.rf_phase);
+        dist.phase = paultrap::Distribution::parse(o.rf_phase);
+        dist.vary_radius = !o.radius.empty();
+        dist.vary_charge = !o.charge.empty();
+        if (dist.vary_radius) { dist.radius = paultrap::Distribution::parse(o.radius); }
+        if (dist.vary_charge) { dist.charge = paultrap::Distribution::parse(o.charge); }
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
         return 2;
@@ -166,8 +207,13 @@ int main(int argc, char** argv)
     const double t_obs = o.rf_periods * 2.0 * kPi / o.omega;
 
     std::vector<InitialCondition> ics(N);
-    for (std::size_t k = 0; k < N; ++k) {
-        ics[k] = draw(o, phase, k);
+    try {
+        for (std::size_t k = 0; k < N; ++k) {
+            ics[k] = draw(o, dist, k);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "error: " << e.what() << "\n";
+        return 2;
     }
 
     const paultrap::TrajectoryIntegrator integ(o.steps_per_rf);
@@ -181,13 +227,15 @@ int main(int argc, char** argv)
     for (std::int64_t idx = 0; idx < total; ++idx) {
         const auto u = p_begin * N + static_cast<std::size_t>(idx);
         const std::size_t pt = u / N, k = u % N;
+        const auto& ic = ics[k];
+        const double inv_r = 1.0 / ic.radius_scale;
+        const double qm_scale = ic.charge_scale * inv_r * inv_r * inv_r;  // (Q/Q_ref)(R_ref/R)^3
         paultrap::TrapParams p;
-        p.a_z = o.a_per_vdc * v_dc[pt / o.n_vac];
-        p.q_z = o.q_per_vac * v_ac[pt % o.n_vac];
-        p.b = o.b;
+        p.a_z = o.a_per_vdc * v_dc[pt / o.n_vac] * qm_scale;
+        p.q_z = o.q_per_vac * v_ac[pt % o.n_vac] * qm_scale;
+        p.b = o.b * inv_r * inv_r;
         p.gravity_term = o.gravity_term;
         p.r0 = o.r0;
-        const auto& ic = ics[k];
         // tau = (Omega t + phase) / 2, u = 2 v / Omega (model.md).
         const double tau0 = ic.rf_phase / 2.0;
         const double tau1 = tau0 + o.omega * t_obs / 2.0;
@@ -280,6 +328,13 @@ int main(int argc, char** argv)
         write((dir / "sample_rf_phase.npy").string(), ph, {N});
         write((dir / "sample_position.npy").string(), pos, {N, 3});
         write((dir / "sample_velocity.npy").string(), vel, {N, 3});
+        std::vector<double> rs(N), cs(N);
+        for (std::size_t k = 0; k < N; ++k) {
+            rs[k] = ics[k].radius_scale;
+            cs[k] = ics[k].charge_scale;
+        }
+        write((dir / "sample_radius_scale.npy").string(), rs, {N});
+        write((dir / "sample_charge_scale.npy").string(), cs, {N});
         write((dir / "sample_electrode.npy").string(), electrode, {o.n_vdc, o.n_vac, N});
         write((dir / "sample_t_end.npy").string(), t_end, {o.n_vdc, o.n_vac, N});
     }
@@ -302,7 +357,9 @@ int main(int argc, char** argv)
          << "  \"sampling\": {\"rf_phase\": \"" << o.rf_phase << "\", \"pos_center\": [" << o.pos_center[0]
          << ", " << o.pos_center[1] << ", " << o.pos_center[2] << "], \"pos_radius\": " << o.pos_radius
          << ", \"vel_mean\": [" << o.vel_mean[0] << ", " << o.vel_mean[1] << ", " << o.vel_mean[2]
-         << "], \"vel_sigma\": " << o.vel_sigma << ", \"common_random_numbers\": true},\n"
+         << "], \"vel_sigma\": " << o.vel_sigma << ", \"radius\": \"" << (o.radius.empty() ? "fixed" : o.radius)
+         << "\", \"charge\": \"" << (o.charge.empty() ? "fixed" : o.charge) << "\", \"radius_ref\": " << o.radius_ref
+         << ", \"charge_ref\": " << o.charge_ref << ", \"common_random_numbers\": true},\n"
          << "  \"coefficients\": {\"a_per_vdc\": " << o.a_per_vdc << ", \"q_per_vac\": " << o.q_per_vac
          << ", \"b\": " << o.b << ", \"gravity_term\": " << o.gravity_term << ", \"r0\": " << o.r0
          << ", \"omega\": " << o.omega << "},\n"

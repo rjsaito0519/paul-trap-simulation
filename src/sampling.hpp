@@ -53,9 +53,10 @@ inline SplitMix64 make_stream(std::uint64_t seed, std::uint64_t index)
     return SplitMix64(mix.next());
 }
 
-// One scalar distribution: "fixed:v", "uniform:min:max" or "normal:mean:sigma".
+// One scalar distribution: "fixed:v", "uniform:min:max", "normal:mean:sigma" or
+// "lognormal:median:sigma_ln" (median * exp(sigma_ln * N(0, 1))).
 struct Distribution {
-    enum class Kind { Fixed, Uniform, Normal } kind = Kind::Fixed;
+    enum class Kind { Fixed, Uniform, Normal, Lognormal } kind = Kind::Fixed;
     double p1 = 0.0;
     double p2 = 0.0;
 
@@ -77,6 +78,7 @@ struct Distribution {
         if (kind == "fixed") { d.kind = Kind::Fixed; d.p1 = field(1); }
         else if (kind == "uniform") { d.kind = Kind::Uniform; d.p1 = field(1); d.p2 = field(2); }
         else if (kind == "normal") { d.kind = Kind::Normal; d.p1 = field(1); d.p2 = field(2); }
+        else if (kind == "lognormal") { d.kind = Kind::Lognormal; d.p1 = field(1); d.p2 = field(2); }
         else { throw std::invalid_argument("unknown distribution: " + spec); }
         return d;
     }
@@ -88,6 +90,7 @@ struct Distribution {
         case Kind::Fixed: return p1;
         case Kind::Uniform: return p1 + (p2 - p1) * rng.uniform();
         case Kind::Normal: return p1 + p2 * rng.normal();
+        case Kind::Lognormal: return p1 * std::exp(p2 * rng.normal());
         }
         return p1;
     }

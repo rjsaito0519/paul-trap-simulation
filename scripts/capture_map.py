@@ -55,6 +55,11 @@ def scan_command(config_path, out, threads, chunk=None, n_chunks=None):
             "--vel-mean", *cap["vel_mean"], "--vel-sigma", cap["vel_sigma"]]
     for k, v in co.items():
         args += [f"--{k.replace('_', '-')}", v]
+    # Optional per-sample particle radius and charge distributions (physical units).
+    if "radius" in cap:
+        args += ["--radius-ref", setup.radius, "--radius", cap["radius"]]
+    if "charge" in cap:
+        args += ["--charge-ref", setup.charge, "--charge", cap["charge"]]
     if chunk is not None:
         args += ["--chunk", chunk, "--n-chunks", n_chunks]
     return [_fmt(a) for a in args]
@@ -213,7 +218,9 @@ def main(argv=None):
     info = (f"b = {co['b']:.3g}, f = {setup.frequency:g} Hz, r0 = {setup.r0 * 1e3:g} mm, "
             f"T_obs = RF {meta['rf_periods']:g} 周期 ({meta['observation_time'] * 1e3:.4g} ms), "
             f"N = {N}/点, seed = {meta['seed']}; 初期位置 半径 {cap['pos_radius'] * 1e3:g} mm の球内一様, "
-            f"初速度 σ = {cap['vel_sigma']:g} m/s, RF位相 一様")
+            f"初速度 σ = {cap['vel_sigma']:g} m/s, RF位相 一様"
+            + (f", 粒径 {cap['radius']}" if "radius" in cap else "")
+            + (f", 電荷 {cap['charge']}" if "charge" in cap else ""))
 
     def overlay(ax):
         for k, (x, y) in enumerate(bnd):
