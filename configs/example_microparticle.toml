@@ -21,19 +21,10 @@ rf_phase = 0.0           # rad; voltage V_DC + V_AC cos(Omega t + rf_phase)
 gravity = 9.80665        # m/s^2 along -z
 
 [simulation]
-duration = 0.25          # s
+duration = 0.15          # s (30 RF periods)
 # Each particle: position [m] and physical velocity [m/s] at t = 0.
+# One particle keeps the animation readable; add more [[particles]] blocks if needed.
 [[particles]]
-label = "slow"
-position = [1.0e-3, 0.0, 1.0e-3]
-velocity = [0.0, 0.05, 0.0]
-
-[[particles]]
-label = "medium"
-position = [-1.5e-3, 0.5e-3, -0.5e-3]
-velocity = [0.2, 0.0, 0.3]
-
-[[particles]]
-label = "fast"
-position = [0.0, 0.0, 0.0]
-velocity = [0.0, 0.0, 15.0]
+label = "particle"
+position = [2.0e-3, 1.0e-3, 1.5e-3]
+velocity = [-0.5, 1.2, 0.5]

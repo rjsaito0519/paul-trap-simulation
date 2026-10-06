@@ -24,7 +24,7 @@ def make_setup(**kw):
 class TestConversions(unittest.TestCase):
     def test_example_config_loads(self):
         s = tj.load_setup(REPO / "configs" / "example_microparticle.toml")
-        self.assertEqual(len(s.particles), 3)
+        self.assertEqual(len(s.particles), 1)
         self.assertAlmostEqual(s.b, 9 * s.viscosity / (s.radius ** 2 * s.density * s.omega), delta=1e-12)
 
     def test_time_and_velocity_round_trip(self):
