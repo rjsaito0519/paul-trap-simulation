@@ -15,13 +15,18 @@ A particle escapes when it reaches an ideal hyperbolic electrode surface
 """
 
 import argparse
+import dataclasses
+import datetime
+import json
 import math
+import platform
 import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import scipy
 from scipy.integrate import solve_ivp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -184,6 +189,69 @@ def integrate(setup, particle, t_eval=None, rtol=1e-10, atol=1e-13, detect_escap
     return Trajectory(particle.label, setup.time(tau_out), pos, vel, escaped, t_esc, electrode)
 
 
+# ---- trajectory files (docs/simulation/architecture.md) ----
+RUN_FORMAT = "paultrap-trajectory-v1"
+SOLVER = {"method": "scipy.integrate.solve_ivp/DOP853", "rtol": 1e-10, "atol": 1e-13, "max_step_tau": "pi/20"}
+
+
+def save_run(path, setup, trajectories, config_text="", command=None, t_eval=None):
+    """Write trajectories and everything needed to reproduce them to one .npz file.
+
+    t_eval, if given, is the requested sample grid (e.g. animation frame times).
+    """
+    setup_fields = {k: v for k, v in dataclasses.asdict(setup).items() if k != "particles"}
+    meta = {
+        "format": RUN_FORMAT,
+        "created": datetime.datetime.now().astimezone().isoformat(),
+        "command": command if command is not None else sys.argv,
+        "git": fr._git_info(Path(__file__).resolve().parent.parent),
+        "python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
+        "solver": SOLVER,
+        "setup": setup_fields,
+        "particles": [{"label": p.label, "position": p.position.tolist(), "velocity": p.velocity.tolist()}
+                      for p in setup.particles],
+        "trajectories": [{"label": tr.label, "escaped": tr.escaped,
+                          "escape_time": None if math.isnan(tr.escape_time) else tr.escape_time,
+                          "electrode": tr.electrode} for tr in trajectories],
+    }
+    arrays = {} if t_eval is None else {"t_eval": np.asarray(t_eval)}
+    for k, tr in enumerate(trajectories):
+        arrays[f"p{k}_t"] = tr.t
+        arrays[f"p{k}_position"] = tr.position
+        arrays[f"p{k}_velocity"] = tr.velocity
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, metadata=json.dumps(meta), config=config_text, **arrays)
+
+
+def load_run(path):
+    """Return (setup, trajectories, metadata) from a file written by save_run."""
+    with np.load(path) as d:
+        meta = json.loads(str(d["metadata"]))
+        if meta.get("format") != RUN_FORMAT:
+            raise ValueError(f"{path}: unknown trajectory format {meta.get('format')!r}")
+        meta["t_eval"] = d["t_eval"] if "t_eval" in d else None
+        setup = Setup(**meta["setup"])
+        setup.particles = [Particle(p["label"], np.array(p["position"]), np.array(p["velocity"]))
+                           for p in meta["particles"]]
+        trajs = []
+        for k, info in enumerate(meta["trajectories"]):
+            esc = info["escape_time"]
+            trajs.append(Trajectory(info["label"], d[f"p{k}_t"], d[f"p{k}_position"], d[f"p{k}_velocity"],
+                                    info["escaped"], math.nan if esc is None else esc, info["electrode"]))
+    return setup, trajs, meta
+
+
+def run_config(path, t_eval=None, samples=4000, duration=None):
+    """Integrate every particle of a TOML configuration; returns (setup, trajectories)."""
+    setup = load_setup(path)
+    if duration is not None:
+        setup.duration = duration
+    if t_eval is None:
+        t_eval = np.linspace(0.0, setup.duration, samples)
+    return setup, [integrate(setup, part, t_eval) for part in setup.particles]
+
+
 def describe(setup):
     c_ax, c_ra, c = fr.trap_classification(setup.a_z, setup.q_z, setup.b)
     names = fr.CLASS_NAMES
@@ -200,24 +268,16 @@ def main(argv=None):
     p.add_argument("--samples", type=int, default=4000)
     args = p.parse_args(argv)
 
-    setup = load_setup(args.config)
+    setup, trajs = run_config(args.config, samples=args.samples)
     print(describe(setup))
-    t_eval = np.linspace(0.0, setup.duration, args.samples)
-    data = {}
-    for k, part in enumerate(setup.particles):
-        tr = integrate(setup, part, t_eval)
+    for tr in trajs:
         fate = (f"escaped at t = {tr.escape_time * 1e3:.3f} ms ({tr.electrode})" if tr.escaped
                 else f"trapped until {setup.duration * 1e3:.1f} ms, "
                      f"final |r| = {np.linalg.norm(tr.position[-1]) * 1e6:.3g} um")
         print(f"{tr.label:>10s}: {fate}")
-        data[f"p{k}_t"] = tr.t
-        data[f"p{k}_position"] = tr.position
-        data[f"p{k}_velocity"] = tr.velocity
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(args.output, config=args.config.read_text(), **data)
+        save_run(args.output, setup, trajs, args.config.read_text())
         print(f"wrote {args.output}")
-
 
 if __name__ == "__main__":
     main()

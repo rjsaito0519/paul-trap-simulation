@@ -51,6 +51,18 @@ ROOTは使用しない（2026-10-06決定）。HDF5、Zarr、NumPy形式など�
 
 2026-10-06時点の暫定形式: 密な走査（`floquet_scan`）は`.npy`とmetadata JSON、境界点（`floquet_boundary`）はCSV（`b, polyline, index, closed, a_z, q_z, limiting, region, edge_axis, edge_i, edge_j`）とmetadata JSON。新しい依存を増やさないため、HDF5やZarrは大きな結果が必要になった段階で再検討する。
 
+軌道ファイル（2026-10-06、Phase 6a）: `scripts/trajectory.py`の`save_run`/`load_run`が読み書きする`.npz`（`paultrap-trajectory-v1`）。描画（`animate_trap.py`）は計算と分離され、この形式を入力にできる。
+
+```text
+metadata    JSON文字列: format, created, command, git, python/numpy/scipy版, solver,
+            setup（Setupの全フィールド、SI単位）, particles（初期条件）,
+            trajectories（label, escaped, escape_time [s] または null, electrode）
+config      元のTOML全文（無い場合は空文字列）
+t_eval      要求したサンプル時刻 [s]（任意。アニメーションのフレーム時刻）
+p{k}_t, p{k}_position [n, 3] m, p{k}_velocity [n, 3] m/s
+            粒子kの軌道。脱出した場合は衝突点を最終サンプルとして含む
+```
+
 ## 想定ディレクトリ
 
 実装が始まった時点で必要なものだけ追加する。
