@@ -65,7 +65,7 @@ find_package(OpenMP REQUIRED COMPONENTS CXX)
 enable_testing()
 
 # Floquet stability engine (docs/simulation/stability.md).
-add_library(paultrap_floquet STATIC src/floquet.cpp)
+add_library(paultrap_floquet STATIC src/floquet.cpp src/trajectory.cpp)
 target_include_directories(paultrap_floquet PUBLIC src)
 target_link_libraries(paultrap_floquet PRIVATE analysis_options)
 
@@ -78,3 +78,7 @@ add_test(NAME floquet_selftest COMMAND floquet_selftest)
 
 add_analysis_executable(floquet_boundary src/floquet_boundary.cpp)
 target_link_libraries(floquet_boundary PRIVATE paultrap_floquet OpenMP::OpenMP_CXX)
+
+# 3D trajectory engine (docs/simulation/stability.md, finite-time capture).
+add_analysis_executable(trajectory_run src/trajectory_run.cpp)
+target_link_libraries(trajectory_run PRIVATE paultrap_floquet)
