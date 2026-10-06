@@ -28,3 +28,20 @@ duration = 0.15          # s (30 RF periods)
 label = "particle"
 position = [2.0e-3, 1.0e-3, 1.5e-3]
 velocity = [-0.5, 1.2, 0.5]
+
+# Monte Carlo capture-probability scan (scripts/capture_map.py, Phase 5).
+# The spreads below are EXAMPLE values, not measured injection conditions.
+[capture]
+v_dc_range = [-1000.0, 1000.0]   # V
+n_v_dc = 41
+v_ac_range = [0.0, 6000.0]       # V, amplitude
+n_v_ac = 61
+samples = 300                    # per grid point
+seed = 1
+rf_periods = 200                 # observation time in RF periods
+steps_per_rf = 200
+rf_phase = "uniform:0:6.283185307179586"
+pos_center = [0.0, 0.0, 0.0]     # m
+pos_radius = 1.0e-3              # m, uniform in a sphere
+vel_mean = [0.0, 0.0, 0.0]       # m/s
+vel_sigma = 0.5                  # m/s, per component

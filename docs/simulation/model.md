@@ -88,4 +88,6 @@ d2z/dtau2 + (a_z - 2 q_z cos(2 tau)) z + b dz/dtau + 4 g / Omega^2 = 0
 [trap]       r0 [m], v_dc [V], v_ac [V, 振幅], frequency [Hz], rf_phase [rad], gravity [m/s^2]
 [simulation] duration [s]
 [[particles]] label, position [m], velocity [m/s, 物理時間]
+[capture]    v_dc_range, n_v_dc, v_ac_range, n_v_ac, samples, seed, rf_periods, steps_per_rf,
+             rf_phase（分布文字列）, pos_center [m], pos_radius [m], vel_mean [m/s], vel_sigma [m/s]
 ```

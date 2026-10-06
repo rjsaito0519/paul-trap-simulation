@@ -2,7 +2,7 @@
 
 空気抵抗と重力を含むポールトラップの粒子軌道、Mathieu方程式の安定領域、有限電極内での捕獲可能性を数値計算するためのプロジェクトです。
 
-2026-10-06時点ではPhase 3（C++/OpenMPによるFloquet安定判定と境界追跡）と、Phase 4の3次元軌道・アニメーション（Python参照実装）まで実装済みです。実装を始める前に、[docs/simulation/README.md](docs/simulation/README.md)から設計文書を確認してください。
+2026-10-06時点ではPhase 3（C++/OpenMPによるFloquet安定判定と境界追跡）、Phase 4の3次元軌道・アニメーション、Phase 5の捕獲確率（C++/OpenMP）まで実装済みです。実装を始める前に、[docs/simulation/README.md](docs/simulation/README.md)から設計文書を確認してください。
 
 ## 想定する構成
 
@@ -26,6 +26,7 @@ python3 scripts/explainer_figures.py                                # 解説図 
 python3 scripts/stability_overview.py                               # b ごとの安定領域全体
 python3 scripts/trajectory.py configs/example_microparticle.toml    # 粒子軌道と捕獲/脱出
 python3 scripts/animate_trap.py configs/example_microparticle.toml --rf-cycles 20   # 3D GIF（.mp4 も可）
+python3 scripts/capture_map.py configs/example_microparticle.toml                   # 捕獲確率マップ（[capture]節）
 ```
 
 共有ログインノードでは、Pythonの数値ライブラリが全コアを使わないよう`OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2`などを設定して実行してください。
